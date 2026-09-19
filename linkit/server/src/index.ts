@@ -90,19 +90,7 @@ io.on("connection", (socket: Socket) => {
   });
 });
 
-import { networkInterfaces } from "os";
-
 httpServer.listen(PORT, () => {
   console.log(`✅ LinkIt server running on http://localhost:${PORT}`);
   console.log(`   Health: http://localhost:${PORT}/health`);
-
-  // Phase 7 — print LAN IP for cross-device testing
-  const nets = networkInterfaces();
-  for (const iface of Object.values(nets)) {
-    for (const net of iface ?? []) {
-      if (net.family === "IPv4" && !net.internal) {
-        console.log(`   Network: http://${net.address}:${PORT}  ← open this on other devices`);
-      }
-    }
-  }
 });
