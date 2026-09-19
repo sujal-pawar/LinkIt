@@ -14,6 +14,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    host: true,   // expose on LAN for Phase 7 cross-device QA (192.168.x.x:5173)
     proxy: {
       // Proxy Socket.IO to the Express server during dev
       "/socket.io": {

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { FileControlSchema } from "shared";
+import { toast } from "../hooks/useToast";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const CHUNK_SIZE  = 16 * 1024;       // 16 KB
@@ -62,6 +63,17 @@ export function FileTransfer({ dataChannel, rtcState }: Props) {
       updateState("open");
     };
     const onClose = () => {
+      if (receivingRef.current) {
+        // Peer disconnected while we were receiving — surface it clearly
+        toast(`Transfer interrupted: "${receivingRef.current.name}" — peer disconnected.`, "warning");
+        setError("Transfer interrupted — peer disconnected mid-file.");
+        setReceiving(null);
+        receivingRef.current = null;
+        chunksRef.current = [];
+      }
+      if (sending) {
+        toast("Send interrupted — peer disconnected.", "warning");
+      }
       console.log("[FileTransfer] DataChannel closed");
       updateState("closed");
       setSending(false);
