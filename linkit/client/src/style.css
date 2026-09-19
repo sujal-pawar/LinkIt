@@ -1,7 +1,7 @@
-@import "tailwindcss";
-
-/* ── Google Font ─────────────────────────────────────────────────────────── */
+/* ── Google Font (must be first @import per CSS spec) ─────────────────────── */
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+
+@import "tailwindcss";
 
 /* ── Design tokens (Twitter/X-inspired dark theme) ─────────────────────── */
 @theme {
