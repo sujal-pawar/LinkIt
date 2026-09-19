@@ -289,12 +289,31 @@ export function useWebRTC(
       }
     }
 
+    /**
+     * peer-left → the OTHER peer disconnected cleanly (left the room /
+     * closed the tab). Without this handler, our RTCPeerConnection has no
+     * way to know that — it just sits waiting until ICE connectivity
+     * checks time out on their own, which lands on connectionState
+     * "failed" (triggering the misleading "STUN couldn't punch through
+     * NAT" error card) before eventually settling on "closed". Closing
+     * proactively here skips straight to "closed" with the correct
+     * messaging, since this is an expected disconnect, not a NAT/TURN
+     * failure.
+     */
+    function onPeerLeft() {
+      console.log("[WebRTC] Peer left room — closing connection cleanly (not a failure)");
+      closePC();
+      setRtcState("closed");
+    }
+
     socket.on("peer-joined", onPeerJoined);
+    socket.on("peer-left",   onPeerLeft);
     socket.on("signal",      onSignal);
 
     // ── Cleanup ───────────────────────────────────────────────────────────────
     return () => {
       socket.off("peer-joined", onPeerJoined);
+      socket.off("peer-left",   onPeerLeft);
       socket.off("signal",      onSignal);
       closePC();
     };

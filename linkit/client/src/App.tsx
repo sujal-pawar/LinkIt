@@ -51,6 +51,12 @@ export default function App() {
   };
 
   const leaveRoom = () => {
+    // Tell the server BEFORE clearing local state — otherwise the socket
+    // stays connected and still a room member, and the other peer never
+    // learns we left (see server/src/index.ts "leave-room" handler).
+    if (socket && roomCode) {
+      socket.emit("leave-room", { roomCode });
+    }
     setRoomState("join");
     setRoomCode("");
     setPeerId("");

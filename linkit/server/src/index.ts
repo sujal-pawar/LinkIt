@@ -76,6 +76,23 @@ io.on("connection", (socket: Socket) => {
     console.log(`    Signal [${data.type}] relayed in room "${roomCode}"`);
   });
 
+  // ── leave-room (explicit, e.g. user clicks "Leave room") ──────────────────
+  // Without this, clicking "Leave room" only resets the CLIENT's own local
+  // UI state — the socket stays connected and still a member of the room
+  // server-side, so the other peer never learns anything happened. They'd
+  // just watch the connection go silent and eventually time out into a
+  // misleading "failed" state instead of a clean "peer left" message.
+  socket.on("leave-room", (raw: unknown) => {
+    const parsed = JoinRoomSchema.safeParse(raw); // same shape: { roomCode }
+    if (!parsed.success) return;
+
+    const { roomCode } = parsed.data;
+    leaveRoom(roomCode, socket.id);
+    socket.leave(roomCode);
+    socket.to(roomCode).emit("peer-left", { peerId: socket.id });
+    console.log(`[-] ${socket.id} explicitly left room "${roomCode}"`);
+  });
+
   // ── disconnect cleanup ─────────────────────────────────────────────────────
   socket.on("disconnect", () => {
     const roomCode = findRoomBySocket(socket.id);
