@@ -14,32 +14,73 @@ export interface UseWebRTCReturn {
 //  - Windows Firewall blocks inbound WebRTC ports from other devices
 //  - Chrome mDNS hides LAN IPs as xxxxxx.local (unresolvable by remote peer)
 //  - Symmetric NAT (hairpin issue) on same-network peers
-// Multiple providers listed — ICE picks the first that works.
-// Replace with paid credentials (Metered / Twilio / Coturn) for production.
-const ICE_SERVERS: RTCIceServer[] = [
+//  - AP/client isolation on the WiFi router (common on public/guest networks)
+
+const STUN_ONLY: RTCIceServer[] = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
-  // Option A: openrelay (free, ~100MB/month quota)
+];
+
+// Shared, public demo credentials. These work for quick local testing but
+// are rate-limited and shared across everyone who has ever copy-pasted
+// this snippet — expect them to fail under real load. Kept ONLY as a
+// last-resort fallback if you haven't set your own credentials yet.
+const SHARED_DEMO_TURN: RTCIceServer[] = [
   {
     urls: [
       "turn:openrelay.metered.ca:80",
       "turn:openrelay.metered.ca:443",
       "turn:openrelay.metered.ca:443?transport=tcp",
-      "turns:openrelay.metered.ca:443",       // TLS on 443 — passes almost any firewall
+      "turns:openrelay.metered.ca:443",
     ],
     username: "openrelayproject",
     credential: "openrelayproject",
   },
-  // Option B: freestun (free, no account needed)
-  {
-    urls: [
-      "turn:freestun.net:3478",
-      "turns:freestun.net:5349",
-    ],
-    username: "free",
-    credential: "free",
-  },
 ];
+
+/**
+ * Fetches YOUR OWN private TURN credentials from Metered's free tier
+ * (50GB/month) if VITE_METERED_APP_NAME + VITE_METERED_API_KEY are set
+ * in client/.env. Falls back to the shared demo TURN server if not
+ * configured - which is almost certainly why cross-device connections
+ * are failing (shared demo credentials are rate-limited / over quota).
+ *
+ * Setup: see HOW_TO_FIX_TURN.md in the repo root.
+ */
+async function getIceServers(): Promise<RTCIceServer[]> {
+  const appName = import.meta.env.VITE_METERED_APP_NAME as string | undefined;
+  const apiKey  = import.meta.env.VITE_METERED_API_KEY as string | undefined;
+
+  if (!appName || !apiKey) {
+    console.warn(
+      "[WebRTC] No VITE_METERED_APP_NAME/VITE_METERED_API_KEY set — " +
+      "using shared demo TURN credentials, which are frequently over quota. " +
+      "See HOW_TO_FIX_TURN.md to get your own free, reliable TURN credentials."
+    );
+    return [...STUN_ONLY, ...SHARED_DEMO_TURN];
+  }
+
+  try {
+    const res = await fetch(
+      `https://${appName}.metered.live/api/v1/turn/credentials?apiKey=${apiKey}`
+    );
+    if (!res.ok) throw new Error(`Metered API returned ${res.status}`);
+    const iceServers = (await res.json()) as RTCIceServer[];
+    console.log(`[WebRTC] Fetched ${iceServers.length} ICE servers from your Metered account`);
+    return [...STUN_ONLY, ...iceServers];
+  } catch (err) {
+    console.error("[WebRTC] Failed to fetch Metered TURN credentials, falling back to demo:", err);
+    return [...STUN_ONLY, ...SHARED_DEMO_TURN];
+  }
+}
+
+// DEBUG: set VITE_FORCE_RELAY=true in client/.env to force ALL traffic
+// through TURN (iceTransportPolicy: "relay") - disables direct/STUN paths
+// entirely. Use this to conclusively test "does TURN itself work" in
+// isolation: if connection SUCCEEDS with this on, TURN is fine and your
+// original failure was something else; if it FAILS with this on, the
+// TURN server/credentials are the actual problem.
+const FORCE_RELAY = import.meta.env.VITE_FORCE_RELAY === "true";
 
 /**
  * useWebRTC — owns the RTCPeerConnection lifecycle for one room session.
@@ -68,6 +109,13 @@ export function useWebRTC(
   useEffect(() => {
     if (!socket || !roomCode) return;
 
+    // Fetch ICE servers once when this hook mounts (room joined). By the
+    // time makePC() is actually called (after peer-joined/offer arrives),
+    // this will have resolved - if not, makePC falls back to STUN-only
+    // rather than blocking the handshake.
+    let iceServers: RTCIceServer[] = STUN_ONLY;
+    getIceServers().then((servers) => { iceServers = servers; });
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     function closePC() {
@@ -81,8 +129,16 @@ export function useWebRTC(
     function makePC(): RTCPeerConnection {
       closePC(); // tear down any stale connection first
 
-      const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+      const pc = new RTCPeerConnection({
+        iceServers,
+        // relay-only mode for isolating TURN failures - see FORCE_RELAY above
+        ...(FORCE_RELAY ? { iceTransportPolicy: "relay" as RTCIceTransportPolicy } : {}),
+      });
       pcRef.current = pc;
+
+      if (FORCE_RELAY) {
+        console.log("[WebRTC] FORCE_RELAY active — only TURN relay candidates allowed, direct/STUN disabled");
+      }
 
       // Mirror RTCPeerConnection state → React state + toast on failure
       pc.onconnectionstatechange = () => {

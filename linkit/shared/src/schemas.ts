@@ -46,9 +46,20 @@ export const FileMetaSchema = z.object({
 
 export const FileDoneSchema = z.object({ type: z.literal("done") });
 
+// Phase 8 — resumable transfer. Sent by the RECEIVER after reconnecting
+// with partially-buffered chunks still in memory, telling the sender
+// exactly how many bytes it already has so the sender can seek forward
+// instead of restarting from byte 0.
+export const ResumeRequestSchema = z.object({
+  type: z.literal("resume-request"),
+  name: z.string(),
+  receivedBytes: z.number().nonnegative(),
+});
+
 export const FileControlSchema = z.discriminatedUnion("type", [
   FileMetaSchema,
   FileDoneSchema,
+  ResumeRequestSchema,
 ]);
 
 // ─── Inferred TypeScript types ────────────────────────────────────────────────
@@ -60,4 +71,5 @@ export type SignalIce = z.infer<typeof SignalIceSchema>;
 export type SignalData = z.infer<typeof SignalDataSchema>;
 export type SignalMessage = z.infer<typeof SignalMessageSchema>;
 export type FileMeta = z.infer<typeof FileMetaSchema>;
+export type ResumeRequest = z.infer<typeof ResumeRequestSchema>;
 export type FileControlMessage = z.infer<typeof FileControlSchema>;

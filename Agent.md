@@ -54,3 +54,17 @@ All 7 core phases complete (Phase 8 optional), two browsers on different
 networks can complete a real file transfer end to end, and every
 non-obvious decision in the code has an inline comment explaining why —
 not just what.
+## Status update (post Phase 5 + TURN fix + resumable transfer)
+- TURN credentials are now fetched dynamically per-user from Metered's
+  API (see `getIceServers()` in `useWebRTC.ts`), not hardcoded shared
+  demo credentials. Falls back to shared demo TURN if no `.env` is set.
+- `VITE_FORCE_RELAY=true` debug flag added for isolating TURN failures.
+- Resumable transfer (Phase 8, item 2) is now implemented: `onClose`
+  preserves buffered chunks (receiver) and the in-flight File reference
+  (sender) instead of discarding them; `onOpen` triggers a
+  `resume-request` control message; `resumeSend()` seeks into the same
+  File object and continues from the reported byte offset. See
+  `ResumeRequestSchema` in `shared/src/schemas.ts`.
+- Still not implemented: Redis-backed room state, multi-file/folder
+  transfer. Do not build these without being asked — see "No premature
+  scope" above.

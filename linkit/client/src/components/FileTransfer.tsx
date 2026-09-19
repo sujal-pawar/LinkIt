@@ -40,6 +40,10 @@ export function FileTransfer({ dataChannel, rtcState }: Props) {
   const chunksRef     = useRef<ArrayBuffer[]>([]);
   const receivingRef  = useRef<ReceiveState | null>(null);
   const fileInputRef  = useRef<HTMLInputElement>(null);
+  // Phase 8 — resumable transfer: remembers the File currently being sent
+  // (or paused mid-send) so a resume-request from the receiver can seek
+  // back into it without asking the user to re-pick the file.
+  const currentFileRef = useRef<File | null>(null);
 
   // Keep refs in sync with props/state
   useEffect(() => { dcRef.current = dataChannel; }, [dataChannel]);
@@ -61,18 +65,35 @@ export function FileTransfer({ dataChannel, rtcState }: Props) {
     const onOpen  = () => {
       console.log("[FileTransfer] DataChannel opened ✅");
       updateState("open");
+
+      // Phase 8 — resumable transfer: if we were mid-receive when the
+      // previous channel closed, we still have the buffered chunks (see
+      // onClose below, which deliberately does NOT discard them). Tell
+      // the sender exactly how many bytes we already have so it can seek
+      // forward instead of restarting from byte 0.
+      if (receivingRef.current && chunksRef.current.length > 0) {
+        const receivedBytes = chunksRef.current.reduce((sum, b) => sum + b.byteLength, 0);
+        console.log(`[FileTransfer] Requesting resume of "${receivingRef.current.name}" from byte ${receivedBytes}`);
+        dataChannel.send(JSON.stringify({
+          type: "resume-request",
+          name: receivingRef.current.name,
+          receivedBytes,
+        }));
+      }
     };
     const onClose = () => {
+      // Phase 8 — resumable transfer: deliberately do NOT clear
+      // receivingRef/chunksRef or currentFileRef here. A disconnect mid-
+      // transfer is treated as "paused", not "failed" — the buffered
+      // chunks (receiver side) and the in-flight File reference (sender
+      // side) survive so onOpen (above) / resumeSend (below) can pick up
+      // where they left off once the peer reconnects.
       if (receivingRef.current) {
-        // Peer disconnected while we were receiving — surface it clearly
-        toast(`Transfer interrupted: "${receivingRef.current.name}" — peer disconnected.`, "warning");
-        setError("Transfer interrupted — peer disconnected mid-file.");
-        setReceiving(null);
-        receivingRef.current = null;
-        chunksRef.current = [];
+        toast(`Paused: "${receivingRef.current.name}" — will resume automatically when peer reconnects.`, "warning");
+        setError("Transfer paused — waiting for peer to reconnect.");
       }
-      if (sending) {
-        toast("Send interrupted — peer disconnected.", "warning");
+      if (sending && currentFileRef.current) {
+        toast(`Paused: "${currentFileRef.current.name}" — will resume automatically when peer reconnects.`, "warning");
       }
       console.log("[FileTransfer] DataChannel closed");
       updateState("closed");
@@ -112,6 +133,10 @@ export function FileTransfer({ dataChannel, rtcState }: Props) {
           setReceiving(null);
           receivingRef.current = null;
           chunksRef.current = [];
+        } else if (msg.type === "resume-request") {
+          // Phase 8 — we're the SENDER, receiver just told us how many
+          // bytes it already has from before a disconnect.
+          void resumeSend(msg.name, msg.receivedBytes);
         }
       } else {
         // Binary chunk
@@ -144,6 +169,43 @@ export function FileTransfer({ dataChannel, rtcState }: Props) {
   // ── Send ─────────────────────────────────────────────────────────────────
   // Plain async function (no useCallback) — uses refs so it always reads
   // the latest dcState and dataChannel without stale-closure issues.
+
+  // Shared chunk-sending loop, used for both a fresh send (startOffset=0)
+  // and a Phase 8 resume (startOffset = however many bytes the receiver
+  // already has). Sends binary chunks with backpressure, then a final
+  // "done" control frame — the receiver's protocol doesn't need to know
+  // whether this was a fresh send or a resumed one.
+  const sendChunksFrom = (
+    dc: RTCDataChannel,
+    buffer: ArrayBuffer,
+    startOffset: number
+  ): Promise<void> => {
+    let offset = startOffset;
+    return new Promise<void>((resolve, reject) => {
+      const sendChunk = () => {
+        try {
+          while (offset < buffer.byteLength) {
+            // Backpressure: pause when buffer fills, resume on drain event
+            if (dc.bufferedAmount > BUFFER_HIGH) {
+              dc.addEventListener("bufferedamountlow", sendChunk, { once: true });
+              return;
+            }
+            const end   = Math.min(offset + CHUNK_SIZE, buffer.byteLength);
+            const chunk = buffer.slice(offset, end);
+            dc.send(chunk);
+            offset = end;
+            setSendProgress(Math.round((offset / buffer.byteLength) * 100));
+          }
+          dc.send(JSON.stringify({ type: "done" }));
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      };
+      sendChunk();
+    });
+  };
+
   const sendFile = async (file: File) => {
     const dc = dcRef.current;
 
@@ -159,47 +221,51 @@ export function FileTransfer({ dataChannel, rtcState }: Props) {
       return;
     }
 
+    currentFileRef.current = file; // remembered in case we get disconnected mid-send
     setSending(true);
     setSendProgress(0);
     setError("");
 
     console.log(`[FileTransfer] Sending "${file.name}" (${file.size} bytes)`);
 
-    // 1. Meta control frame
     dc.send(JSON.stringify({ type: "meta", name: file.name, size: file.size }));
 
     const buffer = await file.arrayBuffer();
-    let offset = 0;
+    await sendChunksFrom(dc, buffer, 0);
 
-    await new Promise<void>((resolve, reject) => {
-      const sendChunk = () => {
-        try {
-          while (offset < buffer.byteLength) {
-            // Backpressure: pause when buffer fills, resume on drain event
-            if (dc.bufferedAmount > BUFFER_HIGH) {
-              dc.addEventListener("bufferedamountlow", sendChunk, { once: true });
-              return;
-            }
-            const end   = Math.min(offset + CHUNK_SIZE, buffer.byteLength);
-            const chunk = buffer.slice(offset, end);
-            dc.send(chunk);
-            offset = end;
-            setSendProgress(Math.round((offset / buffer.byteLength) * 100));
-          }
-          resolve();
-        } catch (err) {
-          reject(err);
-        }
-      };
-      sendChunk();
-    });
-
-    // 2. Done control frame
-    dc.send(JSON.stringify({ type: "done" }));
+    currentFileRef.current = null; // fully sent, nothing left to resume
     setSendProgress(100);
     setSending(false);
     setSentAck(file.name);   // show 2.5s acknowledgement
     console.log("[FileTransfer] Send complete ✅");
+  };
+
+  // Phase 8 — resumable transfer. Called when a "resume-request" control
+  // message arrives from the receiver after we reconnect mid-transfer.
+  // Re-reads the same File object (still held in currentFileRef — File
+  // objects stay valid across a WebRTC reconnect, they're just in-memory
+  // browser handles) and continues sending from the offset the receiver
+  // reports, instead of restarting or re-sending a "meta" frame.
+  const resumeSend = async (name: string, receivedBytes: number) => {
+    const file = currentFileRef.current;
+    const dc = dcRef.current;
+
+    if (!file || !dc || file.name !== name) {
+      console.warn(`[FileTransfer] Resume request for "${name}" but no matching in-flight file — ignoring`);
+      return;
+    }
+
+    console.log(`[FileTransfer] Resuming "${name}" from byte ${receivedBytes}/${file.size}`);
+    setSending(true);
+    setError("");
+
+    const buffer = await file.arrayBuffer();
+    await sendChunksFrom(dc, buffer, receivedBytes);
+
+    currentFileRef.current = null;
+    setSendProgress(100);
+    setSending(false);
+    setSentAck(name);
   };
 
   // Auto-dismiss sent acknowledgement after 2.5s
