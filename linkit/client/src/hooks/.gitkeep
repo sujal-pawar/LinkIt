@@ -1,0 +1,4 @@
+// useSocket.ts — Phase 3
+// This hook will wrap the socket.io-client instance.
+// Placeholder created in Phase 0 to establish directory structure.
+export {};

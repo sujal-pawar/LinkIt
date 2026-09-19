@@ -1,8 +1,9 @@
 {
   "compilerOptions": {
-    "target": "es2023",
-    "module": "esnext",
-    "lib": ["ES2023", "DOM"],
+    "target": "ES2020",
+    "module": "ESNext",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
     "types": ["vite/client"],
     "allowArbitraryExtensions": true,
     "skipLibCheck": true,
@@ -17,8 +18,13 @@
     /* Linting */
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "erasableSyntaxOnly": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "strict": true,
+
+    /* Workspace alias */
+    "paths": {
+      "shared": ["../shared/src/schemas"]
+    }
   },
   "include": ["src"]
 }
