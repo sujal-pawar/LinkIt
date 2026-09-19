@@ -3,7 +3,7 @@ import cors from "cors";
 import { createServer } from "http";
 import { Server, Socket } from "socket.io";
 import { JoinRoomSchema, SignalMessageSchema } from "shared";
-import { joinRoom, leaveRoom, findRoomBySocket } from "./rooms.js";
+import { joinRoom, leaveRoom, findRoomBySocket, getRoomMembers } from "./rooms.js";
 
 const PORT = process.env.PORT ?? 3001;
 
@@ -47,8 +47,17 @@ io.on("connection", (socket: Socket) => {
     socket.emit("room-joined", { roomCode });
     console.log(`    ${socket.id} joined room "${roomCode}"`);
 
-    // Tell the other peer (if already present) that someone new arrived
+    // Tell the existing peer(s) that someone new arrived → they become initiators
     socket.to(roomCode).emit("peer-joined", { peerId: socket.id });
+
+    // Also tell the NEW joiner about any peer already in the room.
+    // We use a DIFFERENT event name (peer-present) so the joiner's useWebRTC
+    // hook knows it's the responder and does NOT create an offer.
+    const existingPeers = [...getRoomMembers(roomCode)].filter(id => id !== socket.id);
+    if (existingPeers.length > 0) {
+      socket.emit("peer-present", { peerId: existingPeers[0] });
+      console.log(`    Notified ${socket.id} of existing peer ${existingPeers[0]}`);
+    }
   });
 
   // ── signal (offer / answer / ice-candidate) ────────────────────────────────

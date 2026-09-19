@@ -21,6 +21,13 @@ export default function App() {
     if (!socket) return;
 
     const onPeerJoined = (data: { peerId: string }) => {
+      // We are the HOST (existing member) — a new peer just joined
+      setPeerId(data.peerId);
+      setRoomState("in-room");
+    };
+    const onPeerPresent = (data: { peerId: string }) => {
+      // We are the JOINER (new member) — server tells us who is already there
+      // useWebRTC handles the responder handshake; we just advance the UI
       setPeerId(data.peerId);
       setRoomState("in-room");
     };
@@ -29,12 +36,14 @@ export default function App() {
       setRoomState("waiting");
     };
 
-    socket.on("peer-joined", onPeerJoined);
-    socket.on("peer-left", onPeerLeft);
+    socket.on("peer-joined",  onPeerJoined);
+    socket.on("peer-present", onPeerPresent);
+    socket.on("peer-left",    onPeerLeft);
 
     return () => {
-      socket.off("peer-joined", onPeerJoined);
-      socket.off("peer-left", onPeerLeft);
+      socket.off("peer-joined",  onPeerJoined);
+      socket.off("peer-present", onPeerPresent);
+      socket.off("peer-left",    onPeerLeft);
     };
   }, [socket]);
 
