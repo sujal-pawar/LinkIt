@@ -147,6 +147,9 @@ deliberately malformed payload gets rejected, not crash the process.
 ---
 
 ## Phase 3 — React client: room join UI + socket connection
+
+Add **Tailwind CSS** and improve the overall UI/UX. Use a clean, modern **Twitter/X-inspired theme** with minimal design, proper spacing, typography, borders, responsive layouts, and blue accent colors. Ensure all components have consistent hover, focus, loading, error, and disabled states. Make the app fully responsive and production-ready without changing existing functionality.
+
 **Goal:** `useSocket` hook wraps the raw `socket.io-client` instance;
 `JoinRoom.tsx` lets a user type a room code and join.
 - `useSocket.ts`: connects once (via `useEffect` + a ref to avoid
