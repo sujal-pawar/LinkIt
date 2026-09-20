@@ -3,7 +3,7 @@ import cors from "cors";
 import { createServer } from "http";
 import { Server, Socket } from "socket.io";
 import { JoinRoomSchema, SignalMessageSchema } from "shared";
-import { joinRoom, leaveRoom, findRoomBySocket, getRoomMembers } from "./rooms.js";
+import { joinRoom, leaveRoom, findRoomBySocket, getRoomMembers, roomExists } from "./rooms.js";
 
 const PORT = process.env.PORT ?? 3001;
 
@@ -30,11 +30,23 @@ io.on("connection", (socket: Socket) => {
   socket.on("join-room", (raw: unknown) => {
     const parsed = JoinRoomSchema.safeParse(raw);
     if (!parsed.success) {
-      socket.emit("error", { message: "Invalid room code (min 4 chars)" });
+      socket.emit("error", { message: "Invalid room code (4-32 characters)" });
       return;
     }
 
-    const { roomCode } = parsed.data;
+    const { roomCode, intent } = parsed.data;
+
+    // Enforce create-vs-join semantics (see RoomIntentSchema in shared).
+    // Separate event from "error" so the client can react to each case
+    // (e.g. quietly retry with a fresh random ID on a collision).
+    if (intent === "create" && roomExists(roomCode)) {
+      socket.emit("room-error", { code: "exists", message: "That room ID is already in use." });
+      return;
+    }
+    if (intent === "join" && !roomExists(roomCode)) {
+      socket.emit("room-error", { code: "not-found", message: "No room with that ID. Check the code and try again." });
+      return;
+    }
     const admitted = joinRoom(roomCode, socket.id);
 
     if (!admitted) {

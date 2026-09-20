@@ -108,6 +108,10 @@ export function useWebRTC(
 
   useEffect(() => {
     if (!socket || !roomCode) return;
+    // TS drops the null-narrowing on `socket` inside the nested closures below
+    // (they run later, so TS can't prove it's still non-null). Capture the
+    // narrowed value in a const so those closures type-check.
+    const sock: Socket = socket;
 
     // Fetch ICE servers once when this hook mounts (room joined). By the
     // time makePC() is actually called (after peer-joined/offer arrives),
@@ -170,7 +174,7 @@ export function useWebRTC(
         if (candidate) {
           // Log candidate type so you can confirm relay (TURN) candidates appear
           console.log(`[WebRTC] ICE candidate: ${candidate.type} ${candidate.protocol} ${candidate.address}`);
-          socket.emit("signal", {
+          sock.emit("signal", {
             roomCode,
             data: { type: "ice-candidate", candidate },
           });
@@ -218,7 +222,7 @@ export function useWebRTC(
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
 
-        socket.emit("signal", {
+        sock.emit("signal", {
           roomCode,
           data: { type: "offer", sdp: pc.localDescription },
         });
@@ -262,7 +266,7 @@ export function useWebRTC(
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
 
-          socket.emit("signal", {
+          sock.emit("signal", {
             roomCode,
             data: { type: "answer", sdp: pc.localDescription },
           });

@@ -13,6 +13,11 @@ type SocketId = string;
 
 const rooms = new Map<RoomCode, Set<SocketId>>();
 
+/** True if at least one peer is currently in the room. */
+export function roomExists(roomCode: RoomCode): boolean {
+  return (rooms.get(roomCode)?.size ?? 0) > 0;
+}
+
 /** Returns true if the socket was added, false if the room is full (≥ 2). */
 export function joinRoom(roomCode: RoomCode, socketId: SocketId): boolean {
   if (!rooms.has(roomCode)) {
