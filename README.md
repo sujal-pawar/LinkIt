@@ -25,10 +25,6 @@ storage, no server bandwidth bill that scales with file size.
 
 ## Screenshots
 
-> Screenshots live in [`docs/screenshots/`](docs/screenshots/) — see
-> that folder's README for exactly what to capture. Once added, they'll
-> render below automatically.
-
 | Landing | Connected |
 |---|---|
 | ![Landing screen](docs/screenshots/landing.png) | ![Connected](docs/screenshots/connected.png) |
