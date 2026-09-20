@@ -305,20 +305,20 @@ export function FileTransfer({ dataChannel, rtcState }: Props) {
         <span className="text-xs px-2 py-0.5 rounded-full font-medium"
               style={{
                 background: isOpen
-                  ? "rgba(0,186,124,0.12)"
+                  ? "rgba(47,211,154,0.12)"
                   : dcState === "closed"
                   ? "rgba(244,33,46,0.12)"
-                  : "rgba(29,155,240,0.12)",
+                  : "rgba(160,139,255,0.14)",
                 color: isOpen
                   ? "var(--color-success)"
                   : dcState === "closed"
                   ? "var(--color-error)"
                   : "var(--color-accent)",
                 border: `1px solid ${isOpen
-                  ? "rgba(0,186,124,0.3)"
+                  ? "rgba(47,211,154,0.3)"
                   : dcState === "closed"
                   ? "rgba(244,33,46,0.3)"
-                  : "rgba(29,155,240,0.3)"}`,
+                  : "rgba(160,139,255,0.34)"}`,
               }}>
           {isOpen ? "DataChannel open" : `DataChannel: ${dcState}`}
         </span>
@@ -344,7 +344,7 @@ export function FileTransfer({ dataChannel, rtcState }: Props) {
             {/* ✅ Sent acknowledgement banner — auto-dismisses after 2.5s */}
             {sentAck && (
               <div className="flex items-center gap-2 rounded-xl px-3 py-2.5 mb-3 animate-fade-in"
-                   style={{ background: "rgba(0,186,124,0.12)", border: "1px solid rgba(0,186,124,0.3)" }}>
+                   style={{ background: "rgba(47,211,154,0.12)", border: "1px solid rgba(47,211,154,0.3)" }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
                      stroke="var(--color-success)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="20 6 9 17 4 12"/>
@@ -352,7 +352,7 @@ export function FileTransfer({ dataChannel, rtcState }: Props) {
                 <span className="text-xs font-medium truncate" style={{ color: "var(--color-success)" }}>
                   Sent — <span className="font-mono">{sentAck}</span>
                 </span>
-                <span className="ml-auto text-xs" style={{ color: "rgba(0,186,124,0.6)" }}>✓</span>
+                <span className="ml-auto text-xs" style={{ color: "rgba(47,211,154,0.6)" }}>✓</span>
               </div>
             )}
 
@@ -361,13 +361,13 @@ export function FileTransfer({ dataChannel, rtcState }: Props) {
               disabled={!isOpen}
               className="w-full rounded-xl py-3 text-sm font-medium transition-all flex items-center justify-center gap-2"
               style={{
-                background: isOpen ? "var(--color-accent)" : "var(--color-bg-elevated)",
+                background: isOpen ? "var(--color-accent-solid)" : "var(--color-bg-surface)",
                 color: isOpen ? "#fff" : "var(--color-text-tertiary)",
                 border: isOpen ? "none" : "1px solid var(--color-border)",
                 cursor: isOpen ? "pointer" : "not-allowed",
               }}
-              onMouseEnter={e => { if (isOpen) e.currentTarget.style.background = "var(--color-accent-hover)"; }}
-              onMouseLeave={e => { if (isOpen) e.currentTarget.style.background = "var(--color-accent)"; }}
+              onMouseEnter={e => { if (isOpen) e.currentTarget.style.background = "var(--color-accent-solid-hover)"; }}
+              onMouseLeave={e => { if (isOpen) e.currentTarget.style.background = "var(--color-accent-solid)"; }}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
                    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -430,7 +430,7 @@ export function FileTransfer({ dataChannel, rtcState }: Props) {
             <div className="animate-fade-in">
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                     style={{ background: "rgba(0,186,124,0.12)", border: "1px solid rgba(0,186,124,0.3)" }}>
+                     style={{ background: "rgba(47,211,154,0.12)", border: "1px solid rgba(47,211,154,0.3)" }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
                        stroke="var(--color-success)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="20 6 9 17 4 12"/>
@@ -447,7 +447,7 @@ export function FileTransfer({ dataChannel, rtcState }: Props) {
               </div>
               <a href={download.url} download={download.name}
                  className="block w-full rounded-xl py-2.5 text-sm font-semibold text-center transition-colors"
-                 style={{ background: "rgba(0,186,124,0.15)", color: "var(--color-success)", border: "1px solid rgba(0,186,124,0.3)" }}>
+                 style={{ background: "rgba(47,211,154,0.15)", color: "var(--color-success)", border: "1px solid rgba(47,211,154,0.3)" }}>
                 ↓ Download {download.name}
               </a>
             </div>

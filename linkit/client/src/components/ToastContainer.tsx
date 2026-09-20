@@ -5,8 +5,8 @@ import type { ToastItem, ToastType } from "../hooks/useToast";
 const COLORS: Record<ToastType, { bg: string; border: string; text: string; icon: string }> = {
   error:   { bg: "rgba(244,33,46,0.12)",   border: "rgba(244,33,46,0.35)",   text: "var(--color-error)",   icon: "✕" },
   warning: { bg: "rgba(255,212,0,0.12)",   border: "rgba(255,212,0,0.35)",   text: "var(--color-warning)", icon: "⚠" },
-  success: { bg: "rgba(0,186,124,0.12)",   border: "rgba(0,186,124,0.35)",   text: "var(--color-success)", icon: "✓" },
-  info:    { bg: "rgba(29,155,240,0.12)",  border: "rgba(29,155,240,0.35)",  text: "var(--color-accent)",  icon: "ℹ" },
+  success: { bg: "rgba(47,211,154,0.12)",   border: "rgba(47,211,154,0.35)",   text: "var(--color-success)", icon: "✓" },
+  info:    { bg: "rgba(160,139,255,0.14)",  border: "rgba(160,139,255,0.35)",  text: "var(--color-accent)",  icon: "ℹ" },
 };
 
 const AUTO_DISMISS_MS: Record<ToastType, number> = {

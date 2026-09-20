@@ -1,10 +1,15 @@
-import { useState, useEffect } from "react";
+import { lazy, Suspense, useState, useEffect, useCallback } from "react";
 import { useSocket } from "./hooks/useSocket";
 import { useWebRTC } from "./hooks/useWebRTC";
 import { toast } from "./hooks/useToast";
-import { JoinRoom } from "./components/JoinRoom";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { Landing } from "./components/landing/Landing";
 import { FileTransfer } from "./components/FileTransfer";
 import { ToastContainer } from "./components/ToastContainer";
+import { usePrefersReducedMotion } from "./hooks/useMediaQuery";
+
+// Loaded on demand: the room background isn't needed until someone is in a room.
+const Grainient = lazy(() => import("./components/backgrounds/Grainient"));
 
 type RoomState = "join" | "waiting" | "in-room";
 
@@ -15,6 +20,7 @@ export default function App() {
   const [peerId, setPeerId]       = useState("");
 
   const { rtcState, dataChannel } = useWebRTC(socket, roomCode);
+  const reducedMotion = usePrefersReducedMotion();
 
   // ── Socket events ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -45,10 +51,10 @@ export default function App() {
     };
   }, [socket]);
 
-  const handleJoined = (code: string) => {
+  const handleJoined = useCallback((code: string) => {
     setRoomCode(code);
     setRoomState("waiting");
-  };
+  }, []);
 
   const leaveRoom = () => {
     // Tell the server BEFORE clearing local state — otherwise the socket
@@ -71,23 +77,53 @@ export default function App() {
       {/* Global toast overlay — always mounted */}
       <ToastContainer />
 
-      <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12"
-           style={{ background: "var(--color-bg-base)" }}>
+      {/* ── LANDING (Ballpit hero, product presentation, create / join) ── */}
+      {roomState === "join" && (
+        <Landing socket={socket} connectionState={connectionState} onJoined={handleJoined} />
+      )}
 
-        {/* ── JOIN ── */}
-        {roomState === "join" && (
-          <JoinRoom
-            socket={socket}
-            connectionState={connectionState}
-            onJoined={handleJoined}
+      {/* ── ROOM (Grainient background) ── */}
+      {roomState !== "join" && (
+      <div className="relative isolate min-h-screen flex flex-col items-center justify-center px-4 py-12">
+
+        {/* Grainient fills the viewport behind the room UI. Settings are the
+            ones chosen for this project; timeSpeed drops to 0 (static frame)
+            for visitors who prefer reduced motion. */}
+        <div className="fixed inset-0 -z-10" aria-hidden="true">
+          <ErrorBoundary fallback={<div className="absolute inset-0" style={{ background: "radial-gradient(60% 70% at 50% 40%, #5f3ceb 0%, #251d2c 55%, #171717 100%)" }} />}>
+          <Suspense fallback={null}>
+          <Grainient
+            color1="#171717"
+            color2="#5f3ceb"
+            color3="#251d2c"
+            timeSpeed={reducedMotion ? 0 : 0.25}
+            colorBalance={0}
+            warpStrength={1}
+            warpFrequency={5}
+            warpSpeed={2}
+            warpAmplitude={50}
+            blendAngle={0}
+            blendSoftness={0.05}
+            rotationAmount={500}
+            noiseScale={2}
+            grainAmount={0.1}
+            grainScale={2}
+            grainAnimated={false}
+            contrast={1.5}
+            gamma={1}
+            saturation={1}
+            centerX={0}
+            centerY={0}
+            zoom={0.9}
           />
-        )}
+          </Suspense>
+          </ErrorBoundary>
+        </div>
 
         {/* ── WAITING FOR PEER ── */}
         {roomState === "waiting" && (
           <div className="animate-fade-in w-full max-w-sm mx-auto">
-            <div className="rounded-2xl p-8 text-center"
-                 style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
+            <div className="glass p-8 text-center">
               <div className="flex justify-center mb-6">
                 <div className="w-14 h-14 rounded-full flex items-center justify-center animate-pulse-ring"
                      style={{ background: "var(--color-accent-muted)", border: "2px solid var(--color-accent)" }}>
@@ -134,15 +170,14 @@ export default function App() {
         {/* ── IN ROOM ── */}
         {roomState === "in-room" && (
           <div className="animate-fade-in w-full max-w-sm mx-auto">
-            <div className="rounded-2xl p-6"
-                 style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
+            <div className="glass p-6">
 
               {/* Header */}
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
                      style={{
                        background: rtcConnected
-                         ? "rgba(0,186,124,0.12)"
+                         ? "rgba(47,211,154,0.14)"
                          : rtcFailed
                          ? "rgba(244,33,46,0.12)"
                          : "var(--color-accent-muted)",
@@ -246,13 +281,14 @@ export default function App() {
         )}
 
         {/* Footer */}
-        <p className="mt-8 text-xs" style={{ color: "var(--color-text-tertiary)" }}>
+        <p className="mt-8 text-xs" style={{ color: "var(--color-text-secondary)" }}>
           LinkIt · end-to-end via WebRTC DataChannel ·&nbsp;
           <span className="font-mono">
             {rtcState !== "idle" ? `rtc:${rtcState}` : `socket:${connectionState}`}
           </span>
         </p>
       </div>
+      )}
     </>
   );
 }
