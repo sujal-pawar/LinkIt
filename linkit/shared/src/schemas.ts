@@ -2,7 +2,20 @@ import { z } from "zod";
 
 // ─── Room joining ────────────────────────────────────────────────────────────
 
-export const JoinRoomSchema = z.object({ roomCode: z.string().min(4) });
+// `intent` is optional so older clients (which send only { roomCode }) still work.
+//   "create" -> the room must NOT already have someone in it. Without this check,
+//               choosing a custom ID that a stranger is already using would silently
+//               drop you into THEIR room instead of telling you the ID is taken.
+//   "join"   -> the room MUST already exist. Without this check, mistyping a code
+//               would quietly create an empty room and leave you "waiting for peer"
+//               forever, with no hint that the code was wrong.
+// Max length keeps arbitrary-size strings out of the in-memory room registry.
+export const RoomIntentSchema = z.enum(["create", "join"]);
+
+export const JoinRoomSchema = z.object({
+  roomCode: z.string().min(4).max(32),
+  intent: RoomIntentSchema.optional(),
+});
 
 // ─── WebRTC signaling payloads ────────────────────────────────────────────────
 
@@ -65,6 +78,7 @@ export const FileControlSchema = z.discriminatedUnion("type", [
 // ─── Inferred TypeScript types ────────────────────────────────────────────────
 
 export type JoinRoom = z.infer<typeof JoinRoomSchema>;
+export type RoomIntent = z.infer<typeof RoomIntentSchema>;
 export type SignalOffer = z.infer<typeof SignalOfferSchema>;
 export type SignalAnswer = z.infer<typeof SignalAnswerSchema>;
 export type SignalIce = z.infer<typeof SignalIceSchema>;
