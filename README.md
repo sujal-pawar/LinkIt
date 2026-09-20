@@ -1,6 +1,7 @@
 <div align="center">
 
-<img width="1866" height="1044" alt="image" src="https://github.com/user-attachments/assets/c5a05cbb-150d-400c-97e5-2dd3c69090a3" />
+<img width="1867" height="929" alt="image" src="https://github.com/user-attachments/assets/731df674-fca3-4b6d-98a7-5477c33c290e" />
+
 
 # LinkIt
 
