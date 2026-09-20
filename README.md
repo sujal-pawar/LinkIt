@@ -1,5 +1,7 @@
 <div align="center">
 
+<img width="1866" height="1044" alt="image" src="https://github.com/user-attachments/assets/c5a05cbb-150d-400c-97e5-2dd3c69090a3" />
+
 # LinkIt
 
 **Peer-to-peer file sharing, straight from your browser — no server ever touches your files.**
