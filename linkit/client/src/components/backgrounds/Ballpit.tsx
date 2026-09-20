@@ -541,19 +541,6 @@ function createPointerData(options: Partial<PointerData> & { domElement: HTMLEle
       document.body.addEventListener('pointermove', onPointerMove as EventListener);
       document.body.addEventListener('pointerleave', onPointerLeave as EventListener);
       document.body.addEventListener('click', onPointerClick as EventListener);
-
-      document.body.addEventListener('touchstart', onTouchStart as EventListener, {
-        passive: false
-      });
-      document.body.addEventListener('touchmove', onTouchMove as EventListener, {
-        passive: false
-      });
-      document.body.addEventListener('touchend', onTouchEnd as EventListener, {
-        passive: false
-      });
-      document.body.addEventListener('touchcancel', onTouchEnd as EventListener, {
-        passive: false
-      });
       globalPointerActive = true;
     }
   }
@@ -563,11 +550,6 @@ function createPointerData(options: Partial<PointerData> & { domElement: HTMLEle
       document.body.removeEventListener('pointermove', onPointerMove as EventListener);
       document.body.removeEventListener('pointerleave', onPointerLeave as EventListener);
       document.body.removeEventListener('click', onPointerClick as EventListener);
-
-      document.body.removeEventListener('touchstart', onTouchStart as EventListener);
-      document.body.removeEventListener('touchmove', onTouchMove as EventListener);
-      document.body.removeEventListener('touchend', onTouchEnd as EventListener);
-      document.body.removeEventListener('touchcancel', onTouchEnd as EventListener);
       globalPointerActive = false;
     }
   };
@@ -575,6 +557,7 @@ function createPointerData(options: Partial<PointerData> & { domElement: HTMLEle
 }
 
 function onPointerMove(e: PointerEvent) {
+  if (e.pointerType !== 'mouse') return; // touch/pen: leave scrolling alone
   pointerPosition.set(e.clientX, e.clientY);
   processPointerInteraction();
 }
@@ -596,59 +579,8 @@ function processPointerInteraction() {
   }
 }
 
-function onTouchStart(e: TouchEvent) {
-  if (e.touches.length > 0) {
-    e.preventDefault();
-    pointerPosition.set(e.touches[0].clientX, e.touches[0].clientY);
-    for (const [elem, data] of pointerMap) {
-      const rect = elem.getBoundingClientRect();
-      if (isInside(rect)) {
-        data.touching = true;
-        updatePointerData(data, rect);
-        if (!data.hover) {
-          data.hover = true;
-          data.onEnter(data);
-        }
-        data.onMove(data);
-      }
-    }
-  }
-}
-
-function onTouchMove(e: TouchEvent) {
-  if (e.touches.length > 0) {
-    e.preventDefault();
-    pointerPosition.set(e.touches[0].clientX, e.touches[0].clientY);
-    for (const [elem, data] of pointerMap) {
-      const rect = elem.getBoundingClientRect();
-      updatePointerData(data, rect);
-      if (isInside(rect)) {
-        if (!data.hover) {
-          data.hover = true;
-          data.touching = true;
-          data.onEnter(data);
-        }
-        data.onMove(data);
-      } else if (data.hover && data.touching) {
-        data.onMove(data);
-      }
-    }
-  }
-}
-
-function onTouchEnd() {
-  for (const [, data] of pointerMap) {
-    if (data.touching) {
-      data.touching = false;
-      if (data.hover) {
-        data.hover = false;
-        data.onLeave(data);
-      }
-    }
-  }
-}
-
 function onPointerClick(e: PointerEvent) {
+  if (e.pointerType && e.pointerType !== 'mouse') return;
   pointerPosition.set(e.clientX, e.clientY);
   for (const [elem, data] of pointerMap) {
     const rect = elem.getBoundingClientRect();
@@ -795,7 +727,10 @@ function createBallpit(canvas: HTMLCanvasElement, config: any = {}): CreateBallp
   const intersectionPoint = new Vector3();
   let isPaused = false;
 
-  canvas.style.touchAction = 'none';
+  // Let touches scroll the page. The stock component used 'none' plus
+  // preventDefault() on body touch events, which froze scrolling and
+  // swallowed taps on every button on phones. Balls react to a mouse only.
+  canvas.style.touchAction = 'pan-y';
   canvas.style.userSelect = 'none';
   (canvas.style as any).webkitUserSelect = 'none';
 
