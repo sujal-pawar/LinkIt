@@ -38,38 +38,45 @@ const SHARED_DEMO_TURN: RTCIceServer[] = [
   },
 ];
 
+const SERVER_URL =
+  (import.meta.env.VITE_SERVER_URL as string | undefined) ?? window.location.origin;
+
 /**
- * Fetches YOUR OWN private TURN credentials from Metered's free tier
- * (50GB/month) if VITE_METERED_APP_NAME + VITE_METERED_API_KEY are set
- * in client/.env. Falls back to the shared demo TURN server if not
- * configured - which is almost certainly why cross-device connections
- * are failing (shared demo credentials are rate-limited / over quota).
+ * Fetches temporary TURN credentials through OUR OWN signaling server
+ * (GET /api/turn-credentials) instead of calling Metered directly from
+ * the browser.
  *
- * Setup: see HOW_TO_FIX_TURN.md in the repo root.
+ * Why not call Metered from here like before: any VITE_-prefixed env var
+ * gets baked into the built JS bundle, so a Metered *account* API key
+ * held client-side would be readable by anyone in devtools — enough to
+ * exhaust your quota or run up charges. The account key now lives only
+ * as a server-side env var (METERED_API_KEY, no VITE_ prefix) and never
+ * ships to the browser. This endpoint returns only the short-lived TURN
+ * username/password the browser actually needs — those are meant to be
+ * public-ish and expire, unlike the account key that mints them.
+ *
+ * Falls back to the shared demo TURN server if the server has no Metered
+ * credentials configured, or the request fails for any reason.
  */
 async function getIceServers(): Promise<RTCIceServer[]> {
-  const appName = import.meta.env.VITE_METERED_APP_NAME as string | undefined;
-  const apiKey  = import.meta.env.VITE_METERED_API_KEY as string | undefined;
-
-  if (!appName || !apiKey) {
-    console.warn(
-      "[WebRTC] No VITE_METERED_APP_NAME/VITE_METERED_API_KEY set — " +
-      "using shared demo TURN credentials, which are frequently over quota. " +
-      "See HOW_TO_FIX_TURN.md to get your own free, reliable TURN credentials."
-    );
-    return [...STUN_ONLY, ...SHARED_DEMO_TURN];
-  }
-
   try {
-    const res = await fetch(
-      `https://${appName}.metered.live/api/v1/turn/credentials?apiKey=${apiKey}`
-    );
-    if (!res.ok) throw new Error(`Metered API returned ${res.status}`);
+    const res = await fetch(`${SERVER_URL}/api/turn-credentials`);
+    if (!res.ok) throw new Error(`Server returned ${res.status}`);
     const iceServers = (await res.json()) as RTCIceServer[];
-    console.log(`[WebRTC] Fetched ${iceServers.length} ICE servers from your Metered account`);
+
+    if (iceServers.length === 0) {
+      console.warn(
+        "[WebRTC] Server has no TURN credentials configured — " +
+        "using shared demo TURN credentials, which are frequently over quota. " +
+        "See HOW_TO_FIX_TURN.md to set METERED_APP_NAME/METERED_API_KEY on the server."
+      );
+      return [...STUN_ONLY, ...SHARED_DEMO_TURN];
+    }
+
+    console.log(`[WebRTC] Fetched ${iceServers.length} ICE servers via signaling server`);
     return [...STUN_ONLY, ...iceServers];
   } catch (err) {
-    console.error("[WebRTC] Failed to fetch Metered TURN credentials, falling back to demo:", err);
+    console.error("[WebRTC] Failed to fetch TURN credentials from server, falling back to demo:", err);
     return [...STUN_ONLY, ...SHARED_DEMO_TURN];
   }
 }

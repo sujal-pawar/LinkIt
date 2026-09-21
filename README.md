@@ -1,5 +1,8 @@
 <div align="center">
 
+<img width="1867" height="929" alt="image" src="https://github.com/user-attachments/assets/731df674-fca3-4b6d-98a7-5477c33c290e" />
+
+
 # LinkIt
 
 **Peer-to-peer file sharing, straight from your browser — no server ever touches your files.**
@@ -24,10 +27,6 @@ established, the file itself never touches the server. No upload, no
 storage, no server bandwidth bill that scales with file size.
 
 ## Screenshots
-
-> Screenshots live in [`docs/screenshots/`](docs/screenshots/) — see
-> that folder's README for exactly what to capture. Once added, they'll
-> render below automatically.
 
 | Landing | Connected |
 |---|---|

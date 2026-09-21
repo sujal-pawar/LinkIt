@@ -22,6 +22,45 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
+// ─── TURN credentials proxy ────────────────────────────────────────────────────
+// The browser needs TURN username/password to authenticate RTCPeerConnection
+// to the TURN server — that part is unavoidable and fine, TURN credentials are
+// meant to be short-lived and handed to clients. What must NOT reach the
+// browser is the long-lived Metered *account* API key: since Vite inlines any
+// VITE_-prefixed env var straight into the shipped JS bundle at build time,
+// putting the key there means anyone can read it out of devtools — enough to
+// burn your quota or rack up charges on your account, not just this session.
+//
+// So the key lives ONLY here (server-side env var, never VITE_-prefixed), and
+// the client calls this endpoint instead of Metered directly. This endpoint
+// fetches fresh temporary credentials on each call and returns just those —
+// the account key itself never leaves the server process.
+const METERED_APP_NAME = process.env.METERED_APP_NAME;
+const METERED_API_KEY  = process.env.METERED_API_KEY;
+
+app.get("/api/turn-credentials", async (_req, res) => {
+  if (!METERED_APP_NAME || !METERED_API_KEY) {
+    // Not configured — client falls back to its own STUN-only / shared demo
+    // TURN defaults. Not an error case, just "nothing to offer here".
+    res.json([]);
+    return;
+  }
+
+  try {
+    const metered = await fetch(
+      `https://${METERED_APP_NAME}.metered.live/api/v1/turn/credentials?apiKey=${METERED_API_KEY}`
+    );
+    if (!metered.ok) {
+      throw new Error(`Metered API returned ${metered.status}`);
+    }
+    const iceServers = await metered.json();
+    res.json(iceServers); // only the temporary TURN creds leave this process
+  } catch (err) {
+    console.error("[TURN] Failed to fetch Metered credentials:", err);
+    res.status(502).json({ error: "Failed to fetch TURN credentials" });
+  }
+});
+
 // ─── Socket.IO signaling ──────────────────────────────────────────────────────
 io.on("connection", (socket: Socket) => {
   console.log(`[+] Connected: ${socket.id}`);
