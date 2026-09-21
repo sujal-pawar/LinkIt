@@ -225,7 +225,3 @@ Run from the `linkit/` directory:
 Detailed phase-by-phase implementation plans, WebRTC connection debugging, TURN setup, backpressure handling, and validation design choices are documented in [`soution.md`](soution.md). Refer to `soution.md` for architectural context and interview-ready engineering explanations.
 
 ---
-
-## License
-
-Distributed under the MIT License. See `LICENSE` for details.
