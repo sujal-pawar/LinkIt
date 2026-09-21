@@ -8,7 +8,7 @@
 **Peer-to-peer file sharing, straight from your browser — no server ever touches your files.**
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![Node.js](https://img.shields.io/badge/Node.js-Express-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Socket.IO](https://img.shields.io/badge/Socket.IO-signaling-010101?logo=socket.io&logoColor=white)](https://socket.io/)
 [![WebRTC](https://img.shields.io/badge/WebRTC-P2P-333333?logo=webrtc&logoColor=white)](https://webrtc.org/)
@@ -20,11 +20,7 @@
 
 ## What is this?
 
-LinkIt lets two people share a file directly, browser to browser, using
-**WebRTC**. A small signaling server helps the two browsers find each
-other and negotiate a connection — but once that connection is
-established, the file itself never touches the server. No upload, no
-storage, no server bandwidth bill that scales with file size.
+LinkIt lets two people share files directly, browser to browser, using **WebRTC**. A lightweight signaling server helps the two browsers discover each other and exchange connection details (SDP offers/answers and ICE candidates). Once the WebRTC peer connection is established, file data flows directly between browsers — your files never touch or pass through the server. No upload limits, no cloud storage, and zero server bandwidth costs for file payload transfers.
 
 ## Screenshots
 
@@ -55,23 +51,25 @@ storage, no server bandwidth bill that scales with file size.
 - [Available scripts](#available-scripts)
 - [Known limitations](#known-limitations)
 - [Roadmap](#roadmap)
-- [Troubleshooting](#troubleshooting)
+- [Troubleshooting & solution details](#troubleshooting--solution-details)
 - [License](#license)
+
+---
 
 ## Features
 
-- 🔒 **True peer-to-peer** — files transfer directly between browsers over a WebRTC `DataChannel`; the server never sees file bytes
-- 🌐 **Works across networks** — STUN for direct connections, with a TURN relay fallback for restrictive NATs/firewalls
-- 🔁 **Resumable transfers** — if the connection drops mid-transfer, it resumes from the last received byte instead of restarting
-- ✅ **Validated at every boundary** — every signaling message and file-transfer control message is checked with [Zod](https://zod.dev/) before being trusted
-- 📊 **Live progress + backpressure handling** — large files send in chunks with buffer-aware pacing, so memory stays flat regardless of file size
-- 🎨 **Clean, responsive UI** — minimal dark theme, works on desktop and mobile
+- 🔒 **True Peer-to-Peer Transfer** — Files stream directly between browser sessions using `RTCDataChannel`. No file bytes ever reach or pass through the signaling server.
+- 🌐 **NAT Traversal & Fallback** — Uses STUN for direct network paths and dynamically fetched TURN credentials (via Metered.ca) for restrictive NATs/firewalls.
+- 🔁 **Resumable Transfers** — If the connection drops mid-transfer, re-establishing connection allows the transfer to resume from the last received chunk offset rather than starting over.
+- ✅ **Boundary Validation** — Every signaling payload and DataChannel control message (metadata, resume requests, completion signals) is validated with [Zod](https://zod.dev/) before execution.
+- ⚡ **Flow & Backpressure Control** — Files are split into 16KB chunks with active `bufferedAmount` monitoring to avoid overwhelming client memory.
+- 🎯 **Interactive & Modern UI** — Built with React, Tailwind CSS, and 3D background elements (OGL/Three) with responsive mobile and desktop layouts.
+
+---
 
 ## How it works
 
-Two browsers can't connect to each other out of nowhere — they first
-need to exchange a bit of setup information. That's what the signaling
-server is for:
+Direct browser-to-browser communication requires exchange of network endpoints and connection parameters. LinkIt uses an Express + Socket.IO server as a signaling broker:
 
 ```
 ┌──────────┐      1. join room       ┌──────────────────┐      1. join room           ┌──────────┐
@@ -86,116 +84,148 @@ server is for:
                                   File bytes flow here — server never involved
 ```
 
-1. **Join a room** — both browsers connect to the signaling server and join the same room code
-2. **Offer / Answer** — one browser creates a WebRTC "offer" (what kind of connection it wants), the other responds with an "answer" — both relayed through the signaling server
-3. **ICE candidates** — both browsers discover possible network paths to reach each other (with help from a public STUN server) and exchange them
-4. **Connected** — once a working path is found, the two browsers talk **directly**. The signaling server's job is done.
-5. **File transfer** — the file is split into 16KB chunks and sent over the `DataChannel`, with backpressure handling so large files don't overwhelm memory. A resumable-transfer protocol means a dropped connection can pick back up instead of starting over.
+1. **Join Room** — Both browsers join the same room using a generated or custom code (intent is checked to prevent accidental room collisions).
+2. **Offer / Answer Exchange** — Initiating peer generates an SDP offer; remote peer responds with an SDP answer, relayed via Socket.IO.
+3. **ICE Candidate Discovery** — Peers gather ICE candidates (via public STUN and Metered.ca TURN servers) and send them through the signaling server.
+4. **Direct Connection Established** — Once candidates match, a direct `RTCPeerConnection` and `RTCDataChannel` are opened.
+5. **Streaming Transfer** — Files are read via FileReader, sliced into 16KB chunks, and transmitted over `RTCDataChannel`. Receivers reconstruct chunks into a downloadable `Blob`.
+
+---
 
 ## Tech stack
 
 | Layer | Technology |
 |---|---|
-| Client | React 19 + TypeScript + Vite + Tailwind CSS |
-| Signaling server | Express + Socket.IO + TypeScript |
-| Shared validation | Zod (schemas shared between client and server via npm workspaces) |
-| Peer connection | Native browser WebRTC API (`RTCPeerConnection`, `RTCDataChannel`) |
-| NAT traversal | STUN (Google's public servers) + TURN (Metered.ca) |
+| **Client** | React 18 + TypeScript + Vite + Tailwind CSS + OGL / Three.js |
+| **Signaling Server** | Express + Socket.IO + TypeScript + `tsx` |
+| **Shared Validation** | Zod (shared schemas across workspaces) |
+| **P2P Protocol** | Native WebRTC API (`RTCPeerConnection`, `RTCDataChannel`) |
+| **NAT Traversal** | STUN (Google) + Dynamic TURN (Metered.ca API) |
+| **Monorepo Management** | npm Workspaces |
+
+---
 
 ## Project structure
 
 ```
-linkit/
-├── shared/               # Zod schemas — single source of truth for every
-│   └── src/schemas.ts    # message shape crossing the client↔server boundary
-├── server/                # Signaling server (Express + Socket.IO)
-│   └── src/
-│       ├── index.ts        # socket event handlers, all validated with Zod
-│       └── rooms.ts        # in-memory room tracking (max 2 peers/room)
-└── client/                 # React app
-    └── src/
-        ├── hooks/
-        │   ├── useSocket.ts   # connects to the signaling server
-        │   └── useWebRTC.ts   # owns the RTCPeerConnection lifecycle
-        ├── components/
-        │   ├── JoinRoom.tsx
-        │   ├── FileTransfer.tsx
-        │   └── ToastContainer.tsx
-        └── App.tsx
+.
+├── README.md
+├── Agent.md
+├── soution.md
+├── docs/
+│   └── screenshots/          # Application screenshot assets
+└── linkit/                   # Core application monorepo
+    ├── package.json          # Root workspace configuration
+    ├── shared/               # Shared Zod schemas & TypeScript types
+    │   └── src/
+    │       └── schemas.ts    # Single source of truth for messages & signals
+    ├── server/               # Express + Socket.IO signaling server
+    │   └── src/
+    │       ├── index.ts      # Socket event handlers with Zod validation
+    │       └── rooms.ts      # In-memory room management
+    └── client/               # Vite + React frontend application
+        └── src/
+            ├── components/   # FileTransfer, JoinRoom, Backgrounds & Scenes
+            ├── hooks/        # useSocket, useWebRTC, useToast, useMediaQuery
+            ├── lib/          # Utilities (roomId generator, etc.)
+            └── App.tsx       # Main application container
 ```
+
+---
 
 ## Getting started
 
 ### Prerequisites
-- Node.js 18+
-- A free [Metered.ca](https://dashboard.metered.ca/signup) account for your own TURN credentials (see below — the app falls back to shared demo credentials without this, which are unreliable)
+- **Node.js 18+** and **npm 9+**
+- *(Optional but recommended)* A free [Metered.ca](https://dashboard.metered.ca/signup) account for private TURN credentials.
 
-### Install
+### Installation
+
+Clone the repository and install workspace dependencies:
 
 ```bash
-git clone <this-repo-url>
+git clone <repository-url>
 cd linkit
 npm install
 ```
 
-### Configure environment
+### Environment Configuration
+
+Configure client environment variables by copying the example file:
 
 ```bash
 cp client/.env.example client/.env
 ```
 
-Fill in your Metered.ca app name and API key (from the **TURN Server**
-page on the dashboard, not the general account key) — see
-[`HOW_TO_FIX_TURN.md`](HOW_TO_FIX_TURN.md) for exact steps.
+Edit `linkit/client/.env`:
 
-### Run
+```env
+VITE_METERED_APP_NAME=your-app-name
+VITE_METERED_API_KEY=your-api-key
+VITE_FORCE_RELAY=false
+```
+
+*Note: If Metered credentials are not provided, the app falls back to shared demo TURN credentials.*
+
+### Running locally
+
+Start both the signaling server (`http://localhost:3001`) and Vite client (`http://localhost:5173`) in development mode:
 
 ```bash
 npm run dev
 ```
 
-This starts both the signaling server (`:3001`) and the client
-(`:5173`) together. Open `http://localhost:5173` in two browser
-tabs (or two devices on the same network — use the "Network" URL Vite
-prints) to test a transfer.
+Open `http://localhost:5173` in two separate browser tabs or devices on your local network to test file transfer.
+
+---
 
 ## Environment variables
 
-All in `client/.env` (see `client/.env.example`):
+Configured in `linkit/client/.env`:
 
-| Variable | Required | Purpose |
-|---|---|---|
-| `VITE_METERED_APP_NAME` | Recommended | Your Metered.ca app name, for private TURN credentials |
-| `VITE_METERED_API_KEY` | Recommended | Your Metered.ca TURN Server API key |
-| `VITE_FORCE_RELAY` | No | Set `true` to force all traffic through TURN only — useful for isolating whether TURN itself is working |
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `VITE_METERED_APP_NAME` | Optional | Demo fallback | Your Metered.ca application name for dynamic TURN fetching |
+| `VITE_METERED_API_KEY` | Optional | Demo fallback | Your Metered.ca TURN server API key |
+| `VITE_FORCE_RELAY` | Optional | `false` | When set to `true`, forces WebRTC traffic through TURN relay only (useful for testing NAT scenarios) |
+
+---
 
 ## Available scripts
 
-Run from the repo root (`linkit/`):
+Run from the `linkit/` directory:
 
-| Command | What it does |
+| Command | Action |
 |---|---|
-| `npm run dev` | Starts both server and client in dev mode |
-| `npm run build` | Builds `shared` then `client` for production |
-| `npm run build:shared` | Builds only the shared schema package |
+| `npm run dev` | Runs signaling server and Vite client concurrently |
+| `npm run build` | Builds `shared` workspace then `client` workspace for production |
+| `npm run build:shared` | Compiles `shared` TypeScript definitions |
+
+---
 
 ## Known limitations
 
-- No TURN fallback beyond a single provider — on very restrictive networks, connection may still fail
-- Room state is in-memory on the signaling server — restarting the server drops all active rooms, and it doesn't scale across multiple server instances (would need Redis pub/sub)
-- One file at a time — no multi-file/folder transfer yet
-- Rooms have no authentication — anyone with the room code can join
+- **In-Memory Signaling State** — Room management in `server/src/rooms.ts` is in-memory. Restarting the signaling server clears active rooms.
+- **Single File Transfer** — Supports sending one file at a time per active session.
+- **Max 2 Peers per Room** — Rooms are strictly peer-to-peer (1 sender, 1 receiver).
+
+---
 
 ## Roadmap
 
-- [ ] Multi-file / folder transfer
-- [ ] Redis-backed room state for horizontal scaling
-- [ ] Room expiry / access control
+- [ ] Folder and multi-file batch transfers
+- [ ] Redis pub/sub integration for horizontally scalable signaling
+- [ ] Room access tokens / passwords
+- [ ] Transfer speed / ETA indicators and bandwidth throttling controls
 
-## Troubleshooting
+---
 
-Full real-world debugging notes — including the exact TURN credential
-issues, a false-positive "connection failed" bug, and how each was
-diagnosed and fixed — are documented in [`solution.md`](solution.md).
-Start there before opening an issue; it covers the most common
-first-run problems in detail.
+## Troubleshooting & solution details
+
+Detailed phase-by-phase implementation plans, WebRTC connection debugging, TURN setup, backpressure handling, and validation design choices are documented in [`soution.md`](soution.md). Refer to `soution.md` for architectural context and interview-ready engineering explanations.
+
+---
+
+## License
+
+Distributed under the MIT License. See `LICENSE` for details.
