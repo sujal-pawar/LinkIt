@@ -4,16 +4,12 @@
     "module": "CommonJS",
     "lib": ["ES2020"],
     "outDir": "./dist",
-    "rootDir": "..",
-    "baseUrl": ".",
+    "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "paths": {
-      "shared": ["../shared/src/schemas"]
-    }
+    "forceConsistentCasingInFileNames": true
   },
-  "include": ["src", "../shared/src"],
+  "include": ["src"],
   "exclude": ["node_modules", "dist"]
 }
